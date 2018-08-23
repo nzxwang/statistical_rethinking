@@ -68,3 +68,9 @@ loss <- sapply(globe_toss_skewed$p_grid,
               function(d) sum(globe_toss_skewed$posterior * 
                                 abs(d - globe_toss_skewed$p_grid) ))
 globe_toss_skewed$p_grid[ which.min(loss) ]
+
+
+#3.3
+dummy_w <- rbinom(10000, size=9, prob=0.7)
+table(dummy_w)/1e5
+dbinom(0:9, size=9, prob=0.7)
