@@ -2,43 +2,40 @@ library(tidyverse)
 library(modelr)
 library(rethinking)
 library(MASS)
+library(hexbin)
 
 data(Howell1)
 d <- as_tibble(Howell1)
 
 d2 <- d %>% filter(age >=18)
-d2 %>% ggplot() + geom_histogram(aes(x=height, y=..density..), binwidth=2)
-
-m4.2 <- map(
-  flist = alist(
-    height ~ dnorm( mu , sigma ) ,
-    mu ~ dnorm( 178 , 0.1 ) ,
-    sigma ~ dunif( 0 , 50 )
-  ) ,
-  data = as.data.frame(d2) )
-precis( m4.2 )
+d2 %>% ggplot() + 
+  geom_histogram(aes(x=height, y=..density..), binwidth=2)
 
 m4.1 <- map(
   flist = alist(
     height ~ dnorm(mu, sigma), 
-    u ~ dnorm(178, 20),
+    mu ~ dnorm(178, 20),
     sigma ~ dunif (0, 50)), 
   data = as.data.frame(d2) )
+
+#summarise the MAP estimate
 precis(m4.1)
 vcov( m4.1 )
 diag( vcov( m4.1 ) )
 cov2cor( vcov( m4.1 ) )
 
 #sample from the 2dim posterior
-post <- mvrnorm( n=1e4 , mu=coef(m4.1) , Sigma=vcov(m4.1) )
+parameter_samples <- as_tibble(
+  mvrnorm(n=1e4, mu=coef(m4.1), Sigma=vcov(m4.1))
+)
 
-#these visualisations are very similar to those of the grid sample
-post %>% ggplot(aes(x=mu,y=sigma)) + geom_point(alpha=0.01)
-library(hexbin)
-post %>% ggplot(aes(x=mu,y=sigma)) + geom_hex()
+#visualize the sampled parameters
+parameter_samples %>% 
+  ggplot(aes(x=mu,y=sigma)) + geom_point(alpha=0.01)
+parameter_samples %>% ggplot(aes(x=mu,y=sigma)) + geom_hex()
 
 #using weight as a predictor variable
-
+d2 %>% ggplot() + geom_point(aes(weight,height))
 m4.3 <- map(
   flist=alist(
     height ~ dnorm( mu , sigma ) ,
@@ -48,20 +45,27 @@ m4.3 <- map(
     sigma ~ dunif( 0 , 50 )
   ) ,
   data=as.data.frame(d2) )
+
 precis( m4.3, corr=TRUE )
-samples <- as_tibble(extract.samples( m4.3 ))
+parameter_samples <- as_tibble(
+  mvrnorm(n=1e4, mu=coef(m4.3), 
+          Sigma=vcov(m4.3)))
+
+#plot the mean height at each weight, with 50 sampled lines
 d2 %>% ggplot(aes(weight, height)) + geom_point() + 
   geom_abline(aes(intercept=coef(m4.3)["a"] , slope=coef(m4.3)["b"])) +
-  geom_abline(data = post[1:50,], 
+  geom_abline(data = parameter_samples[1:50,], 
               aes(intercept=a, slope=b), alpha=0.1)
 
 #find the 89% highest posterior density interval of mu at 50kg
-samples <- samples %>% mutate (mu_at_50kg = a + b*50)
-HPDI(post$mu_at_50kg, prob=0.89)
+parameter_samples <- 
+  parameter_samples %>% mutate (mu_at_50kg = a + b*50)
+HPDI(parameter_samples$mu_at_50kg, prob=0.89)
 
 weight.seq <- seq( from=25 , to=70 , by=1 )
 #sample 1000 from the posterior for each value in weight.seq
-sampled_mu <- sapply( weight.seq , function(weight) samples$a + samples$b*weight )
+sampled_mu <- sapply( weight.seq , function(weight) 
+  parameter_samples$a + parameter_samples$b*weight )
 str(sampled_mu)
 
 pred <- tibble(weight.seq=weight.seq,
@@ -76,9 +80,9 @@ d2 %>% ggplot() + geom_point(aes(weight, height)) +
 
 simulated_height <- sapply( weight.seq , function(weight)
   rnorm(
-    n=nrow(samples) ,
-    mean=samples$a + samples$b*weight ,
-    sd=samples$sigma ) )
+    n=nrow(parameter_samples) ,
+    mean=parameter_samples$a + parameter_samples$b*weight ,
+    sd=parameter_samples$sigma ) )
 simulated <- pred %>% mutate(
   height_lb = apply(simulated_height, 2, HPDI, prob=0.89)[1,],
   height_ub = apply(simulated_height, 2, HPDI, prob=0.89)[2,]

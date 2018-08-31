@@ -8,7 +8,8 @@ d <- as_tibble(Howell1)
 d <- d %>% mutate(weight.s = (weight-mean(d$weight))/sd(d$weight),
          weight.s2 = weight.s^2)
 
-d %>% ggplot() + geom_point(aes(weight.s,height)) + coord_cartesian(ylim=c(0,200))
+d %>% ggplot() + geom_point(aes(weight.s,height)) + 
+  coord_cartesian(ylim=c(0,200))
 
 m4.5 <- map(
   alist(
