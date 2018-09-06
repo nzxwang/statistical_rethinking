@@ -139,7 +139,7 @@ cfx <- cfx %>%
          divorce.ub = apply(simulated_divorce, 2, PI)[2,]
          )
 ggplot(cfx) + 
-  geom_abline(aes(intercept=coef(m5.3)["a"] , slope=coef(m5.3)["bR"])) +  
+  geom_abline(aes(intercept=coef(m5.3)["a"] + coef(m5.3)['bA']*cfx$MedianAgeMarriage.s[[1]], slope=coef(m5.3)["bR"])) +  
   geom_ribbon(mapping=aes(x = Marriage.s, ymin=mu.lb, ymax=mu.ub),
               alpha=0.5) + 
   geom_ribbon(mapping=aes(x = Marriage.s, ymin=divorce.lb, ymax=divorce.ub),
