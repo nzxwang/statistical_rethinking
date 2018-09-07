@@ -9,6 +9,7 @@ d <- as_tibble(foxes) %>% mutate(group = as.factor(group))
 #visualize area vs body weight
 d %>% ggplot() + geom_point(aes(area,weight))
 
+#fit weight ~ area
 m_wa <- map(
   alist(
     weight ~ dnorm( mu , sigma ) ,
@@ -71,7 +72,7 @@ d %>% ggplot() +
               alpha=0.5, data = bounds_wgs)
 
 #both variables seem to be weak predictors of weight
-d %>% ggplot() + geom_point(aes(weight, groupsize))
+
 
 ##multivariate model
 mm <- map(
@@ -85,6 +86,16 @@ mm <- map(
   ) ,
   data=as.data.frame(d)
 )
+#the two variables mask each other's effect;
+#they correlate with each other, but one is positive with weight;
+#the other is negative with weight
+# Mean StdDev  5.5% 94.5%
+#   a       4.45   0.37  3.86  5.04
+# b.area  0.62   0.20  0.30  0.94
+# b.gs   -0.43   0.12 -0.62 -0.24
+# sigma   1.12   0.07  1.00  1.24
+d %>% ggplot() + geom_point(aes(area, groupsize))
+
 sampled_parameters_mm <- as_tibble(
   mvrnorm(n=1e4,
           mu=coef(mm),
@@ -121,4 +132,78 @@ ggplot(d) +
   geom_ribbon(mapping=aes(x = groupsize, ymin=mu_gs.lb, ymax=mu_gs.ub),
               alpha=0.5, data=bounds) +
   labs(y = 'weight')
-#the two variables mask each other's effect
+
+#5H3
+m2 <- map(
+  alist(
+    weight ~ dnorm( mu , sigma ) ,
+    mu <- a + b.avgfood*avgfood + b.gs*groupsize,
+    a ~ dunif( 0 , 10 ) ,
+    b.avgfood ~ dnorm ( 0, 5 ),
+    b.gs ~ dnorm( 0 , 5 ) ,
+    sigma ~ dunif( 0 , 10 )
+  ) ,
+  data=as.data.frame(d)
+)
+sampled_parameters_m2 <- as_tibble(
+  mvrnorm(n=1e4,
+          mu=coef(m2),
+          Sigma=vcov(m2))
+)
+seq <- tibble(
+  avgfood=seq_range(d$avgfood, n=30),
+  avgfood.mean=mean(d$avgfood),
+  groupsize=seq_range(d$groupsize, n=30),
+  groupsize.mean=mean(d$groupsize)
+)
+sampled_mu_avgfood <- sapply(seq$avgfood, function (avgfood)
+  sampled_parameters_m2$a + sampled_parameters_m2$b.avgfood*avgfood +
+    sampled_parameters_m2$b.gs*seq$groupsize.mean[[1]])
+sampled_mu_gs <- sapply(seq$groupsize, function (gs)
+  sampled_parameters_m2$a + sampled_parameters_m2$b.avgfood*seq$avgfood.mean[[1]] +
+    sampled_parameters_m2$b.gs*gs)
+bounds <- tibble(
+  avgfood = seq$avgfood,
+  groupsize = seq$groupsize,
+  mu_avgfood.lb = apply(sampled_mu_avgfood, 2, PI)[1,],
+  mu_avgfood.ub = apply(sampled_mu_avgfood, 2, PI)[2,],
+  mu_gs.lb = apply(sampled_mu_gs, 2, PI)[1,],
+  mu_gs.ub = apply(sampled_mu_gs, 2, PI)[2,]
+)
+ggplot(d) +
+  geom_abline(aes(intercept=coef(m2)["a"] + coef(m2)['b.gs']*seq$groupsize.mean[[1]], slope=coef(m2)["b.avgfood"])) +  
+  geom_ribbon(mapping=aes(x = avgfood, ymin=mu_avgfood.lb, ymax=mu_avgfood.ub),
+              alpha=0.5, data=bounds) +
+  labs(y = 'weight')
+ggplot(d) +
+  geom_abline(aes(intercept=coef(m2)["a"] + coef(m2)['b.avgfood']*seq$avgfood.mean[[1]], slope=coef(m2)["b.gs"])) +  
+  geom_ribbon(mapping=aes(x = groupsize, ymin=mu_gs.lb, ymax=mu_gs.ub),
+              alpha=0.5, data=bounds) +
+  labs(y = 'weight')
+
+
+m3 <- map(
+  alist(
+    weight ~ dnorm( mu , sigma ) ,
+    mu <- a + 
+      b.avgfood*avgfood + 
+      b.gs*groupsize +
+      b.area*area,
+    a ~ dunif( 0 , 10 ) ,
+    b.avgfood ~ dnorm ( 0, 5 ),
+    b.gs ~ dnorm( 0 , 5 ) ,
+    b.area ~ dnorm( 0 , 5 ) ,
+    sigma ~ dunif( 0 , 10 )
+  ) ,
+  data=as.data.frame(d)
+)
+# Mean StdDev  5.5% 94.5%
+#   a          4.09   0.42  3.42  4.77
+# b.avgfood  2.32   1.39  0.09  4.55
+# b.gs      -0.59   0.15 -0.84 -0.35
+# b.area     0.40   0.24  0.02  0.78
+# sigma      1.10   0.07  0.99  1.22
+
+d %>% ggplot() + geom_point(aes(avgfood,area))
+#avgfood and area are closely correlated with each other.
+#avgfood and area are also closely correlated with weight
