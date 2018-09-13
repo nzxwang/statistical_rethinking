@@ -1,0 +1,41 @@
+---
+title: "Ordinary Least Square"
+author: "Nick Wang"
+date: 2018-09-11
+params:
+  wd: "/hpf/largeprojects/MICe/nwang/statistical_rethinking"
+output: html_notebook
+---
+
+```{r setup}
+library(tidyverse)
+library(MASS)
+```
+
+```{r}
+d <- as_tibble(iris) %>% 
+  filter(Species %in% c('setosa','versicolor')) %>%
+  mutate( x = as.integer(Species=='setosa'), y=Sepal.Length) %>%
+  select(x, Species, y)
+
+d %>% ggplot() + geom_point(aes(x, y), alpha=0.2)
+
+m <- lm(y ~ x, d)
+
+#manually compute the projection
+y = d$y
+X = cbind(rep(1,100),d$x)
+B_hat = ginv( t(X)%*%X ) %*% t(X) %*% y
+d$y_hat <- X %*% B_hat
+d$res <- d$y - d$y_hat
+
+d %>% ggplot() + 
+  geom_point(aes(x, y), alpha=0.2) +
+  geom_abline(intercept = B_hat[1], slope = B_hat[2], colour='red')
+```
+
+```{r}
+d %>% ggplot() + 
+  geom_histogram(aes(res), bins = 30)
+```
+

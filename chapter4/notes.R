@@ -2,6 +2,7 @@ library(tidyverse)
 library(modelr)
 library(rethinking)
 
+#sum of anything drawn from RV converges to normal distrib
 normal <- replicate( 1000 , sum( runif(16,-1,1) ) )
 as_tibble(normal) %>% ggplot() + 
   geom_histogram(aes(x=value, y=..density..)) + 
@@ -31,17 +32,10 @@ tibble(
 grid <- tibble(
   mu = seq( from=140, to=160 , length.out=200 ),
   sigma = seq( from=4 , to=9 , length.out=200 )
-) %>% data_grid(sigma,mu) %>%
-  mutate(log_likelihood = sum(dnorm(
-    d2$height, mean=mu, sd=sigma, log=TRUE
-  )))
-#ask Chris why mutating this doesn't work
-grid$LL <- sapply(seq_along(grid$mu), function (i) sum(dnorm(
-  d2$height,
-  mean=grid$mu[[i]],
-  sd=grid$sigma[[i]],
-  log=TRUE
-)))
+) %>% 
+  data_grid(sigma,mu) %>%
+  mutate(log_likelihood = map2_dbl(mu, sigma, ~ sum(dnorm(d2$height, mean = .x, sd = .y, log = TRUE))))
+
 #the log of the product of the prior and likelihood
 grid <- grid %>% mutate(prod = LL + dnorm(mu, 178,20,log=TRUE) + 
                           dunif(sigma,0,50,log=TRUE))
