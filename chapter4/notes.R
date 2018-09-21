@@ -12,7 +12,8 @@ data(Howell1)
 d <- as_tibble(Howell1)
 
 d2 <- d %>% filter(age >=18)
-d2 %>% ggplot() + geom_histogram(aes(x=height, y=..density..), binwidth=2)
+d2 %>% ggplot() + 
+  geom_histogram(aes(x=height, y=..density..), binwidth=2)
 
 #mean prior
 curve( dnorm( x , 178 , 20 ) , from=100 , to=250 )
@@ -34,13 +35,13 @@ grid <- tibble(
   sigma = seq( from=4 , to=9 , length.out=200 )
 ) %>% 
   data_grid(sigma,mu) %>%
-  mutate(log_likelihood = map2_dbl(mu, sigma, ~ sum(dnorm(d2$height, mean = .x, sd = .y, log = TRUE))))
+  mutate(LL = map2_dbl(mu, sigma, ~ sum(dnorm(d2$height, mean = .x, sd = .y, log = TRUE))),
+         product = LL + dnorm(mu, 178, 20, log=TRUE) + dunif(sigma, 0, 50, log=TRUE),
+         prob = exp(product - max(product))
+  )
 
-#the log of the product of the prior and likelihood
-grid <- grid %>% mutate(prod = LL + dnorm(mu, 178,20,log=TRUE) + 
-                          dunif(sigma,0,50,log=TRUE))
-#the relative proportional posterior
-grid <- grid %>% mutate(prob = exp(prod - max(grid$prod)))
+#product is the log of the product of the prior and likelihood
+#prob is the relative proportional posterior
 
 #visualize the posterior given the parameters
 grid %>% ggplot() + 
@@ -51,9 +52,8 @@ grid %>% ggplot() +
   coord_cartesian(xlim = c(153.5,155.5), ylim=c(7,8.5))
 
 #sample from the posterior
-sample <- tibble(row = sample(seq_along(grid$prob), size=1e4, replace=TRUE,
-                               prob=grid$prob),
-                 mu = grid$mu[row],
+sample <- tibble(row = sample(seq_along(grid$prob), size=1e4, replace=TRUE, prob=grid$prob), 
+                 mu = grid$mu[row], 
                  sigma = grid$sigma[row])
 
 sample %>% ggplot(aes(x=mu,y=sigma)) + geom_point(alpha=0.01)

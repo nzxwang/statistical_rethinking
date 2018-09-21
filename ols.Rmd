@@ -38,4 +38,3 @@ d %>% ggplot() +
 d %>% ggplot() + 
   geom_histogram(aes(res), bins = 30)
 ```
-
