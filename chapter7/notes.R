@@ -141,3 +141,30 @@ sampled_parameters_m7.5 %>%
   
 #probability that slope within Africa is less than slope outside Africa?
 sum(sampled_parameters_m7.5$diff<0) / length(sampled_parameters_m7.5$diff)
+
+#the interaction is symmetric
+rugged_range <- d$rugged %>% range()
+mu.ruggedlow = link( m7.5 , data=data.frame(cont_africa=0:1,rugged=rugged_range[1]) )
+mu.ruggedhigh = link( m7.5 , data=data.frame(cont_africa=0:1,rugged=rugged_range[2]))
+
+bounds_m7.5 <- tibble(
+  cont_africa = 0:1,
+  mu.ruggedlow.mean = apply( mu.ruggedlow , 2 , mean ),
+  mu.ruggedlow.lb = apply( mu.ruggedlow , 2 , PI , prob=0.97 )[1,],
+  mu.ruggedlow.ub = apply( mu.ruggedlow , 2 , PI , prob=0.97 )[2,],
+  mu.ruggedhigh.mean = apply( mu.ruggedhigh , 2 , mean ),
+  mu.ruggedhigh.lb = apply( mu.ruggedhigh , 2 , PI , prob=0.97 )[1,],
+  mu.ruggedhigh.ub = apply( mu.ruggedhigh , 2 , PI , prob=0.97 )[2,]
+)
+
+d.ruggedlow <- d %>% filter(rugged<median(rugged))
+d.ruggedhigh <- d %>% filter(rugged>=median(rugged))
+
+bounds_m7.5 %>% 
+  ggplot() + 
+  geom_point(data=d.ruggedlow, aes(x=cont_africa, y=log_gdp), color="red", position = position_nudge(x=-0.05)) +
+  geom_point(data=d.ruggedhigh, aes(x=cont_africa, y=log_gdp), color="blue", position = position_nudge(x=0.05)) +
+  geom_abline(aes(slope=coef(m7.5)["bA"] + coef(m7.5)["bAR"]*rugged_range[1], intercept=coef(m7.5)["a"] + coef(m7.5)['bR']*rugged_range[1]), color='red') +
+  geom_ribbon(aes(x = cont_africa, ymin=mu.ruggedlow.lb, ymax=mu.ruggedlow.ub), fill='red', alpha=0.2) +
+  geom_abline(aes(slope=coef(m7.5)["bA"] + coef(m7.5)["bAR"]*rugged_range[2],  intercept=coef(m7.5)["a"] + coef(m7.5)['bR']*rugged_range[2]), color='blue') +
+geom_ribbon(aes(x = cont_africa, ymin=mu.ruggedhigh.lb, ymax=mu.ruggedhigh.ub), fill='blue', alpha=0.2)
